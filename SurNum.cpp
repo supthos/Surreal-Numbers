@@ -1,42 +1,112 @@
 // 2025 (c) Reed Axewielder, G.M. Davila
+// All rights reserved.
 // SurNum.cpp : This file contains the 'main' function. Program execution begins and ends there.
 //
 
 #include <algorithm>
 #include <iostream>
-#include<set>
-#include<map>
-#include<vector>
+#include <set>
+#include <map>
+#include <vector>
 #include <climits>
 #include <string>
 #include <concepts>
 
 
-
-// Concept: checks if T has isSurreal() member function
 template<typename T>
-concept Surreal = requires(T a) {
-    { a.isSurreal() } -> std::convertible_to<bool>;
+concept Ordinal = requires(T a) {
+    { a.isOrdinal() == true } -> std::convertible_to<bool>;
 };
+
+
+template<typename T>  
+concept isNum = requires(T a) {
+    { a.isNumber() } -> std::convertible_to<bool>;
+};
+
+template<typename T>
+concept Relations = requires(T x, T y) {
+    { x >= y } -> std::same_as<bool>;
+    { x <= y } -> std::same_as<bool>;
+    { x == y } -> std::same_as<bool>;
+    { x < y } -> std::same_as<bool>;
+    { x > y } -> std::same_as<bool>;
+    { x + y } -> std::same_as<T>;
+    { -y } -> std::same_as<T>;
+    { x * y } -> std::same_as<T>;
+};
+
+
+template<typename T>  
+concept Surreal = ((isNum<T> || std::is_arithmetic_v<T>) && Relations<T>);
+
+// SurNum class constrained to types that satisfy SurrealLike
+template<Surreal T>
+class SurNum {
+public:
+    T value;
+    SurNum(const T& v) : value(v) {
+        if (!v.isNumber()) {
+            throw std::invalid_argument("Value is not surreal.");
+        }
+    }
+    SurNum<T> operator+(const SurNum<T>& rhs) {
+        return SurNum<T>(value + rhs.value);
+    }
+    SurNum<T> operator-(const SurNum<T>& rhs) {
+        return SurNum<T>(value - rhs.value);
+    }
+    SurNum<T> operator-() {
+        return SurNum<T>(-value);
+    }
+    SurNum<T> operator*(const SurNum<T>& rhs) {
+        return SurNum<T>(value * rhs.value);
+    }
+    bool operator<(const SurNum<T>&rhs) {
+        return (value < rhs.value);
+    }
+    bool operator>(const SurNum<T>& rhs) {
+        return (value > rhs.value);
+    }
+    bool operator<=(const SurNum<T>& rhs) {
+        return (value <= rhs.value);
+    }
+    bool operator>=(const SurNum<T>& rhs) {
+        return (value >= rhs.value);
+    }
+    bool operator==(const SurNum<T>& rhs) {
+        return (value == rhs.value);
+    }
+    bool operator!=(const SurNum<T>& rhs) {
+        return (value != rhs.value);
+    }
+
+};
+
 
 // Class of Partizan games.
 class ParGam {
 public:
-    
+
     //tern sign = Z;
     //const ParGam* x = this;
 
     struct CustComp {
-        bool operator()(ParGam a, ParGam b) const {
-            return a.operator<( b) ; // Descending order
+        bool operator()(const ParGam& a, const ParGam& b) const {
+            return a.operator<(b); // Descending order
             //return b > a;
         }
     };
-    std::set<ParGam, CustComp> L{};
-    std::set<ParGam, CustComp> R{};
+
+    typedef std::set<ParGam, ParGam::CustComp> options;
+    
+
+    options L{};
+    options R{};
 
     ParGam() = default;
-    ParGam(std::set<ParGam, ParGam::CustComp>l, std::set<ParGam, ParGam::CustComp>r) {
+
+    ParGam( options l,  options r) {
         if (!l.empty()) {
             L = l;
         }
@@ -50,22 +120,35 @@ public:
         for (auto i : L) {
             s = s + i.displ();
         }
-        s = s + " | ";
+        s = s + "|";
         for (auto i : R) {
             s = s + i.displ();
         }
         s = s + "}";
         return s;
     }
+
+    bool Ident(ParGam x, ParGam y) {
+        if (x.L == y.L && x.R == y.R) return true;
+        else return false;
+    }
+
+    ParGam Infimum(const  options  S) const {
+        if (!S.empty())
+            return *std::min_element(S.begin(), S.end(), ParGam::CustComp());
+        else return ParGam( options {},  options {});
+    }
+    ParGam Supremum(const  options  S) const {
+        if (!S.empty())
+            return *std::max_element(S.begin(), S.end(), ParGam::CustComp());
+        else return ParGam( options {},  options {});
+    }
+
     bool operator >= (const ParGam& y) const {
-        if (!R.empty())
-        for (auto& i : R) {
-            if (i <= y) return false;
-        }
-        if (!y.L.empty())
-        for (auto& i : y.L) {
-            if (*this <= i) return false;
-        }
+        if (!R.empty() && Infimum(R) <= y) return false;
+
+        if (!y.L.empty() && *this <= Supremum(y.L)) return false;
+
         return true;
     }
     bool operator <= (const ParGam& y) const {
@@ -81,38 +164,35 @@ public:
     }
 
     bool operator<(const ParGam& y) const {
-        return (y > *this); 
+        return (y > *this);
     }
-    bool isSurreal() {
-        if (!L.empty())
-        for (auto& i : L) {
-            if (!R.empty())
-            for (auto& j : R) {
-                if (i >= j) return false;
-            }
+    bool isNumber() const {
+        if (!L.empty() && !R.empty()) {
+            if (std::all_of(L.begin(), L.end(), [](const ParGam& i) -> bool { return i.isNumber(); }))
+            if (Supremum(L) >= Infimum(R)) return false;
         }
         return true;
     }
 
     ParGam operator+(const ParGam& y) const {
-        ParGam Sum({},{});
+        ParGam Sum( options {},  options {});
         if (!L.empty())
-        for (auto& i: L) Sum.L.insert(i+y);
+            for (auto& i : L) Sum.L.insert(i + y);
         if (!y.L.empty())
-        for (auto& i : y.L) Sum.L.insert(*this + i);
+            for (auto& i : y.L) Sum.L.insert(*this + i);
         if (!R.empty())
-        for (auto& i : R) Sum.R.insert(i + y);
+            for (auto& i : R) Sum.R.insert(i + y);
         if (!y.R.empty())
-        for (auto& i : y.R) Sum.R.insert(*this + i);
+            for (auto& i : y.R) Sum.R.insert(*this + i);
         return Sum;
     }
 
     ParGam operator-()const {
-        ParGam InvSum({}, {});
+        ParGam InvSum( options {},  options {});
         if (!R.empty())
-        for (auto& i: R) InvSum.L.insert(-i);
+            for (auto& i : R) InvSum.L.insert(-i);
         if (!L.empty())
-        for (auto& i: L) InvSum.R.insert(-i);
+            for (auto& i : L) InvSum.R.insert(-i);
         return InvSum;
     }
 
@@ -121,89 +201,94 @@ public:
     }
 
     ParGam operator*(const ParGam& y) const {
-        ParGam Sum({}, {});
-        ParGam Mul({}, {});
+        ParGam Sum( options {},  options {});
+        ParGam Mul( options {},  options {});
         ParGam x = *this;
 
         if (!x.L.empty())
-        for (auto& i : x.L) {
-            if (!y.L.empty())
-            for (auto& j : y.L) {
-                Sum = (i * y) + (x * j) - (i * j);
-                Mul.L.insert(Sum);
+            for (auto& i : x.L) {
+                if (!y.L.empty())
+                    for (auto& j : y.L) {
+                        Sum = (i * y) + (x * j) - (i * j);
+                        Mul.L.insert(Sum);
+                    }
             }
-        }
         if (!x.R.empty())
-        for (auto& i : x.R) {
-            if (!y.R.empty())
-            for (auto& j : y.R) {
-                Sum = (i * y) + (x * j) - (i * j);
-                Mul.L.insert(Sum);
+            for (auto& i : x.R) {
+                if (!y.R.empty())
+                    for (auto& j : y.R) {
+                        Sum = (i * y) + (x * j) - (i * j);
+                        Mul.L.insert(Sum);
+                    }
             }
-        }
         if (!x.L.empty())
-        for (auto& i : x.L) {
-            if (!y.R.empty())
-            for (auto& j : y.R) {
-                Sum = (i * y) + (x * j) - (i * j);
-                Mul.R.insert(Sum);
+            for (auto& i : x.L) {
+                if (!y.R.empty())
+                    for (auto& j : y.R) {
+                        Sum = (i * y) + (x * j) - (i * j);
+                        Mul.R.insert(Sum);
+                    }
             }
-        }
         if (!x.R.empty())
-        for (auto& i : x.R) {
-            if (!y.L.empty())
-            for (auto& j : y.L) {
-                Sum = (i * y) + (x * j) - (i * j);
-                Mul.R.insert(Sum);
+            for (auto& i : x.R) {
+                if (!y.L.empty())
+                    for (auto& j : y.L) {
+                        Sum = (i * y) + (x * j) - (i * j);
+                        Mul.R.insert(Sum);
+                    }
             }
-        }
-
+        //Mul.reduce();
         return Mul;
     }
-};
-
-// SurNum class constrained to types that satisfy SurrealLike
-template<Surreal T>
-class SurNum : public ParGam {
-public:
-
-    SurNum(const T& v) : L(v.L), R(v.R) {
-        if (!v.isSurreal()) {
-            throw std::invalid_argument("Value is not surreal.");
-        }
+    bool isOrdinal() {
+        if (isNumber() && R.empty()) return true;
+        else return false;
     }
 
+
 };
+
+
+
+
+
+
+
+
+
+
+
+
 
 int main()
 {
 
-    std::map<long, ParGam> On;
+    std::map<long, ParGam> On{};
 
-    std::set<ParGam, ParGam::CustComp> empty{};
+    ParGam::options  empty{};
     
     try {
-        On[0] = ParGam(std::set<ParGam, ParGam::CustComp>{}, std::set<ParGam, ParGam::CustComp>{});
+        On[0] = ParGam(ParGam::options{}, ParGam::options{});
         std::cout << "Is O[0] a NUMBER? ";
-        if (On[0].isSurreal()) std::cout << "Yes!\n";
+        if (On[0].isNumber()) std::cout << "Yes!\n";
         else std::cout << "No.\n";
         std::cout << On[0].displ() << std::endl;
 
-        On[1] = ParGam(std::set<ParGam, ParGam::CustComp>{ On[0] }, std::set<ParGam, ParGam::CustComp>{});
+        On[1] = ParGam(ParGam::options{ On[0] }, ParGam::options{});
         std::cout << "Is O[1] a NUMBER? ";
-        if (On[1].isSurreal()) std::cout << "Yes!\n";
+        if (On[1].isNumber()) std::cout << "Yes!\n";
         else std::cout << "No.\n";
         std::cout << On[0].displ() << std::endl;
         std::cout << On[1].displ() << std::endl;
 
-        On[-1] = ParGam(std::set<ParGam, ParGam::CustComp>{}, std::set<ParGam, ParGam::CustComp>{ On[0] });
+        On[-1] = ParGam(ParGam::options{}, ParGam::options{ On[0] });
         std::cout << "Is O[-1] a NUMBER? ";
-        if (On[-1].isSurreal()) std::cout << "Yes!\n";
+        if (On[-1].isNumber()) std::cout << "Yes!\n";
         else std::cout << "No.\n";
        
-        for (unsigned i = 2; i<=300; ++i) {
-            On[(long)i] = ParGam(std::set<ParGam, ParGam::CustComp>{ On[i - 1] }, std::set<ParGam, ParGam::CustComp>{});
-            On[-(long)i] = ParGam(std::set<ParGam, ParGam::CustComp>{}, std::set<ParGam, ParGam::CustComp>{ On[i - 1] });
+        for (unsigned i = 2; i<=127; i++) {
+            On[(long)i] = ParGam(ParGam::options{ On[i - 1] }, ParGam::options{});
+            On[-(long)i] = ParGam(ParGam::options{}, ParGam::options{ On[i - 1] });
 
             //std::cout << "Allocated " << i*2 << " elements\n";
             //std::cout << On[(long)i].displ() << std::endl;
@@ -215,19 +300,35 @@ int main()
 
     std::cout << "0 = " << On[0].displ() << std::endl;
     std::cout << "1 = " << (On[0] + On[1]).displ() << std::endl;
-    std::cout << "2 = " << On[2].displ() << std::endl;
-    std::cout << "3 = " << On[3].displ() << std::endl;
-    std::cout << "4 = " << On[4].displ() << std::endl;
+    std::cout << "2 = " << (On[1] + On[1]).displ() << std::endl;
+    std::cout << "3 = " << (On[1] * On[3]).displ() << std::endl;
+    std::cout << "4 = " << (On[2] * On[2]).displ() << std::endl;
     std::cout << "5 = " << On[5].displ() << std::endl;
-    std::cout << "6 = " << On[6].displ() << std::endl;
+    std::cout << "6 = " << (On[2] * On[3]).displ() << std::endl;
     std::cout << "7 = " << On[7].displ() << std::endl;
     std::cout << "8 = " << On[8].displ() << std::endl;
     std::cout << "9 = " << On[9].displ() << std::endl;
     std::cout << "10 = " << On[10].displ() << std::endl;
 
-    ParGam A = On[8] + On[3];
+    ParGam A = On[2] * On[2];
+    
+    A = A - On[3];
+    SurNum<ParGam> B = SurNum<ParGam>(A) + SurNum<ParGam>(On[3]);
+    SurNum<int> C = 4;
+    
     std::cout << "A = " << A.displ() << std::endl;
-    if (A == On[11]) {
+    if (A == On[1]) {
+        std::cout << "True\n";
+    }
+    else std::cout << "False\n";
+    if (B == C) {
+        std::cout << "True\n";
+    }
+    else std::cout << "False\n";
+
+    
+
+    if (A.isNumber()) {
         std::cout << "True\n";
     }
     else std::cout << "False\n";
