@@ -38,9 +38,9 @@ concept Relations = requires(T x, T y) {
 
 
 template<typename T>  
-concept Surreal = ((isNum<T> || std::is_arithmetic_v<T>) && Relations<T>);
+concept Surreal = (isNum<T> && Relations<T>);
+//concept Surreal = ((isNum<T> && Relations<T>) || std::is_arithmetic_v<T> );
 
-// SurNum class constrained to types that satisfy SurrealLike
 template<Surreal T>
 class SurNum {
 public:
@@ -117,10 +117,14 @@ public:
 
     std::string displ() {
         std::string s = "{";
+        if (!L.empty())
         for (auto i : L) {
             s = s + i.displ();
         }
+        
         s = s + "|";
+
+        if (!R.empty())
         for (auto i : R) {
             s = s + i.displ();
         }
@@ -191,8 +195,10 @@ public:
         ParGam InvSum( options {},  options {});
         if (!R.empty())
             for (auto& i : R) InvSum.L.insert(-i);
+
         if (!L.empty())
             for (auto& i : L) InvSum.R.insert(-i);
+
         return InvSum;
     }
 
@@ -249,91 +255,82 @@ public:
 };
 
 
-
-
-
-
-
-
-
-
-
-
-
 int main()
 {
 
-    std::map<long, ParGam> On{};
+    ParGam On1(ParGam::options{}, ParGam::options{});
+
+
+    std::map<long, std::string> Num;
 
     ParGam::options  empty{};
-    
+    unsigned i = 0;
     try {
-        On[0] = ParGam(ParGam::options{}, ParGam::options{});
         std::cout << "Is O[0] a NUMBER? ";
-        if (On[0].isNumber()) std::cout << "Yes!\n";
+        if (On1.isNumber()) {
+            std::cout << "Yes!\n";
+            Num[0] = On1.displ();
+        }
         else std::cout << "No.\n";
-        std::cout << On[0].displ() << std::endl;
-
-        On[1] = ParGam(ParGam::options{ On[0] }, ParGam::options{});
+        std::cout << On1.displ() << std::endl;
+        
+        On1 = ParGam(ParGam::options{On1}, ParGam::options{});
         std::cout << "Is O[1] a NUMBER? ";
-        if (On[1].isNumber()) std::cout << "Yes!\n";
+        if (On1.isNumber()) {
+            std::cout << "Yes!\n";
+            Num[1] = On1.displ();
+        }
         else std::cout << "No.\n";
-        std::cout << On[0].displ() << std::endl;
-        std::cout << On[1].displ() << std::endl;
+        std::cout << On1.displ() << std::endl;
 
-        On[-1] = ParGam(ParGam::options{}, ParGam::options{ On[0] });
+        On1 = -On1;
+
         std::cout << "Is O[-1] a NUMBER? ";
-        if (On[-1].isNumber()) std::cout << "Yes!\n";
+        if (On1.isNumber()) {
+            std::cout << "Yes!\n";
+            Num[-1] = On1.displ();
+        }
         else std::cout << "No.\n";
+        std::cout << On1.displ() << std::endl;
        
-        for (unsigned i = 2; i<=127; i++) {
-            On[(long)i] = ParGam(ParGam::options{ On[i - 1] }, ParGam::options{});
-            On[-(long)i] = ParGam(ParGam::options{}, ParGam::options{ On[i - 1] });
+        for (i = 2; i<=500; i++) {
+            On1 = ParGam(ParGam::options{ On1 }, ParGam::options{});
+            Num[(long)i] = On1.displ();
+
+            On1 = -On1;
+            Num[-(long)i] = On1.displ();
 
             //std::cout << "Allocated " << i*2 << " elements\n";
             //std::cout << On[(long)i].displ() << std::endl;
         }
     }
     catch (const std::bad_alloc&) {
-        std::cout << "Memory limit reached after " << On.size() << " elements.\n";
+        std::cout << "Memory limit reached after " << i << " pairs of pairs.\n";
     }
 
-    std::cout << "0 = " << On[0].displ() << std::endl;
-    std::cout << "1 = " << (On[0] + On[1]).displ() << std::endl;
-    std::cout << "2 = " << (On[1] + On[1]).displ() << std::endl;
-    std::cout << "3 = " << (On[1] * On[3]).displ() << std::endl;
-    std::cout << "4 = " << (On[2] * On[2]).displ() << std::endl;
-    std::cout << "5 = " << On[5].displ() << std::endl;
-    std::cout << "6 = " << (On[2] * On[3]).displ() << std::endl;
-    std::cout << "7 = " << On[7].displ() << std::endl;
-    std::cout << "8 = " << On[8].displ() << std::endl;
-    std::cout << "9 = " << On[9].displ() << std::endl;
-    std::cout << "10 = " << On[10].displ() << std::endl;
+    std::cout << "0 = " << Num[0] << std::endl;
+    std::cout << "1 = " << Num[1] << std::endl;
+    std::cout << "2 = " << Num[2] << std::endl;
+    std::cout << "3 = " << Num[3] << std::endl;
+    std::cout << "4 = " << Num[4] << std::endl;
+    std::cout << "5 = " << Num[5] << std::endl;
+    std::cout << "6 = " << Num[6] << std::endl;
+    std::cout << "7 = " << Num[7] << std::endl;
+    std::cout << "8 = " << Num[8] << std::endl;
+    std::cout << "9 = " << Num[9] << std::endl;
 
-    ParGam A = On[2] * On[2];
-    
-    A = A - On[3];
-    SurNum<ParGam> B = SurNum<ParGam>(A) + SurNum<ParGam>(On[3]);
-    SurNum<int> C = 4;
-    
-    std::cout << "A = " << A.displ() << std::endl;
-    if (A == On[1]) {
-        std::cout << "True\n";
-    }
-    else std::cout << "False\n";
-    if (B == C) {
-        std::cout << "True\n";
-    }
-    else std::cout << "False\n";
+    std::cout << std::endl;
 
-    
+    std::cout << "0 = " << Num[0] << std::endl;
+    std::cout << "-1 = " << Num[-1] << std::endl;
+    std::cout << "-2 = " << Num[-2] << std::endl;
+    std::cout << "-3 = " << Num[-3] << std::endl;
+    std::cout << "-4 = " << Num[-4] << std::endl;
+    std::cout << "-5 = " << Num[-5] << std::endl;
+    std::cout << "-6 = " << Num[-6] << std::endl;
+    std::cout << "-7 = " << Num[-7] << std::endl;
+    std::cout << "-8 = " << Num[-8] << std::endl;
+    std::cout << "-9 = " << Num[-9] << std::endl;
 
-    if (A.isNumber()) {
-        std::cout << "True\n";
-    }
-    else std::cout << "False\n";
-
-
-    std::cout << "Hello World!\n";
     
 }
